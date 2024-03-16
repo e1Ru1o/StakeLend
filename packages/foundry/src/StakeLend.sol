@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {IStakeLend} from "./interface/IStakeLend.sol";
-import {IStakeVault, IERC20} from "./interface/IStakeVault.sol";
+import {IStakeLend} from "./interfaces/IStakeLend.sol";
+import {IStakeVault, IERC20} from "./interfaces/IStakeVault.sol";
 import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
-import {AggregatorV3Interface} from "./interface/AggregatorV3Interface.sol";
+import {AggregatorV3Interface} from "./interfaces/AggregatorV3Interface.sol";
 import {EIP7002} from "./utils/EIP7002.sol";
 
 //TODO pk needs to be bytes calldata

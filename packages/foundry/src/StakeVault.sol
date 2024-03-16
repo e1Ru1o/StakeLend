@@ -2,7 +2,7 @@
 //modification of https://github.com/madlabman/eip-4788-proof/
 pragma solidity ^0.8.24;
 
-import {IStakeVault, IERC20} from "./interface/IStakeVault.sol";
+import {IStakeVault, IERC20} from "./interfaces/IStakeVault.sol";
 import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 import {ERC4626Upgradeable} from
     "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
