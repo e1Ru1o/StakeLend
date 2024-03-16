@@ -30,9 +30,21 @@ interface IStakeLend {
 
     /**
      * Lender can take back assets + profit
-     * @dev Callet should have some shares in the pool
+     * @dev Caller should have some shares in the pool
      * @dev Burns all the shares of the lender
      * @param poolId Pool to claim assets from
      */
     function claim(uint256 poolId) external;
+
+    /**
+     * Triggers the validators exit from the beacon chain if
+     * a liquidation condition is met
+     * @dev Liquidation conditions are:
+     *  -undercollateralization
+     *  -unmet deadline
+     *  -validator inactivity
+     * @param poolId Pool to liquidate
+     * @param balanceProof zk-proof of the validator beacon chain balance
+     */
+    function liquidate(uint256 poolId, bytes32 balanceProof) external;
 }
