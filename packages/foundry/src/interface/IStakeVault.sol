@@ -14,4 +14,6 @@ interface IStakeVault {
     ) external;
 
     function lend() external;
+
+    function repay() external;
 }

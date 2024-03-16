@@ -84,11 +84,10 @@ contract StakeLend is IStakeLend, EIP7002 {
         _fowardCall(vault, data);
     }
 
-    //TODO payback here and in interface
-    /*function repay(address vault) external {
-        bytes memory data = abi.encodeWithSelector(IERC4626.repay.selector);
+    function repay(address vault) external {
+        bytes memory data = abi.encodeWithSelector(IStakeVault.repay.selector);
         _fowardCall(vault, data);
-    }*/
+    }
 
     function claim(address vault, uint256 shares, uint256 receiver, uint256 owner) external {
         bytes memory data = abi.encodeWithSelector(IERC4626.redeem.selector, shares, receiver, owner);
