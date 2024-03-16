@@ -19,7 +19,7 @@ contract StakeLend {
         bytes32 _balanceProof,
         uint256 _proofTimestamp
     ) external {
-        //get pool data
+        //TODO get pool data
         uint256 loanDeadline;
         uint256 minCollateralRatio;
         uint256 amountToRepay;
@@ -42,11 +42,11 @@ contract StakeLend {
     }
 
     function _triggerValidatorExit(uint256 _validatorIndex) internal {
-        //trigger validator exit using EIP-7002
+        //TODO trigger validator exit using EIP-7002
     }
 
     function _getEthPriceInUsdc(uint256 _ethAmount) internal returns (uint256) {
-        //use chainlink oracle price feed to get eth price in usd
+        //chainlink oracle price feed to get eth price in usd
         (, int256 ethPrice,,,) = usdDataFeed.latestRoundData();
         //return total ether value
         return uint256(ethPrice) * _ethAmount / 10 ** 20; //get from 8 decimals to 6
@@ -61,7 +61,7 @@ contract StakeLend {
         if (block.timestamp > _proofTimestamp + PROOF_EXPIRY_TIME) {
             return false;
         }
-        //check proof is valid
+        //TODO check proof is valid
         return true;
     }
 }
