@@ -2,8 +2,9 @@
 pragma solidity ^0.8.24;
 
 import "./interface/AggregatorV3Interface.sol";
+import "./utils/EIP-7002.sol";
 
-contract StakeLend {
+contract StakeLend is EIP7002 {
     uint256 PROOF_EXPIRY_TIME = 5 hours;
     AggregatorV3Interface internal usdDataFeed;
 
@@ -11,38 +12,34 @@ contract StakeLend {
         usdDataFeed = AggregatorV3Interface(_usdDataFeed);
     }
 
-    //optimize with struct and pack?
+    //TODO optimize with struct and pack?
     function liquidate(
-        uint256 _poolId,
-        uint256 _validatorIndex,
+        address _vaultAddress,
+        bytes calldata _validatorPubKey,
         uint256 _validatorBalance,
         bytes32 _balanceProof,
         uint256 _proofTimestamp
     ) external {
-        //TODO get pool data
+        //TODO get vault data
         uint256 loanDeadline;
         uint256 minCollateralRatio;
         uint256 amountToRepay;
 
         //check if current timestamp is past loan deadline
         if (block.timestamp > loanDeadline) {
-            _triggerValidatorExit(1);
+            trigger_exit(_vaultAddress, _validatorPubKey);  
         }
 
         //verify validator balance is correct
-        if (_validBalanceProof(_validatorIndex, _validatorBalance, _balanceProof, _proofTimestamp)) {
+        if (_validBalanceProof(_validatorPubKey, _validatorBalance, _balanceProof, _proofTimestamp)) {
             //check if min collateral ratio is not maintained
             if (_getEthPriceInUsdc(_validatorBalance) / amountToRepay < minCollateralRatio) {
-                _triggerValidatorExit(1);
+                trigger_exit(_vaultAddress, _validatorPubKey);
             }
         }
 
         //revert liquidation
         revert();
-    }
-
-    function _triggerValidatorExit(uint256 _validatorIndex) internal {
-        //TODO trigger validator exit using EIP-7002
     }
 
     function _getEthPriceInUsdc(uint256 _ethAmount) internal returns (uint256) {
@@ -53,7 +50,7 @@ contract StakeLend {
     }
 
     function _validBalanceProof(
-        uint256 _validatorIndex,
+        bytes calldata _validatorPubKey,
         uint256 _validatorBalance,
         bytes32 _balanceProof,
         uint256 _proofTimestamp
