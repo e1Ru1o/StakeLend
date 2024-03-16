@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: MIT
+//modification of https://github.com/madlabman/eip-4788-proof/
 pragma solidity ^0.8.24;
 
 import {IStakeVault, IERC20} from "./interface/IStakeVault.sol";
 import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
-import {ERC4626Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
+import {ERC4626Upgradeable} from
+    "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {SSZ} from "./utils/SSZ.sol";
 
 enum VaultStatus {
     DEPOSITING,
@@ -17,6 +20,10 @@ enum VaultStatus {
 contract StakeVault is IStakeVault, ERC4626Upgradeable {
     using Math for uint256;
 
+    address public constant BEACON_ROOTS =
+        0x000F3df6D732807Ef1319fB7B8bB8522d0Beac02;
+    uint64 constant VALIDATOR_REGISTRY_LIMIT = 2 ** 40;
+
     uint256 public requiredAmount;
     uint256 public deadline;
     uint256 public rewardBPS;
@@ -25,18 +32,28 @@ contract StakeVault is IStakeVault, ERC4626Upgradeable {
     address private validator;
     VaultStatus public status;
 
+    /// @dev Generalized index of the first validator struct root in the
+    /// registry.
+    uint256 public gIndex;
+
+    event Accepted(uint64 indexed validatorIndex); //todo take care of this
+
+    error RootNotFound();
+
     constructor() {
         _disableInitializers();
     }
 
     function initialize(
+        uint256 _gIndex,
         uint256 requiredAmount_,
         uint256 deadline_,
         uint256 rewardBPS_,
         bytes calldata pk,
         IERC20 usdc,
         address validator_
-    ) external initializer {
+    ) external override initializer {
+        gIndex = _gIndex;
         __ERC4626_init(usdc);
         requiredAmount = requiredAmount_;
         deadline = deadline_;
@@ -47,7 +64,10 @@ contract StakeVault is IStakeVault, ERC4626Upgradeable {
         status = VaultStatus.DEPOSITING;
     }
 
-    function deposit(uint256 assets, address receiver) public override returns (uint256) {
+    function deposit(
+        uint256 assets,
+        address receiver
+    ) public override returns (uint256) {
         uint256 balance = IERC20(asset()).balanceOf(address(this));
         if (balance >= requiredAmount) {
             return 0;
@@ -64,7 +84,10 @@ contract StakeVault is IStakeVault, ERC4626Upgradeable {
      * @dev Implementation fallbacks to deposit function after computing assets amount
      *      with consideration to totalAssets and totalSupply
      */
-    function mint(uint256 shares, address receiver) public override returns (uint256) {
+    function mint(
+        uint256 shares,
+        address receiver
+    ) public override returns (uint256) {
         uint256 assets = previewMint(shares);
         return deposit(assets, receiver);
     }
@@ -74,14 +97,23 @@ contract StakeVault is IStakeVault, ERC4626Upgradeable {
      * @dev Implementation fallbacks to redeem function after computing shares amount
      *      with consideration to totalAssets and totalSupply
      */
-    function withdraw(uint256 assets, address receiver, address owner) public override returns (uint256) {
+    function withdraw(
+        uint256 assets,
+        address receiver,
+        address owner
+    ) public override returns (uint256) {
         uint256 shares = previewWithdraw(assets);
         return redeem(shares, receiver, owner);
     }
 
-    function redeem(uint256 shares, address receiver, address owner) public override returns (uint256) {
+    function redeem(
+        uint256 shares,
+        address receiver,
+        address owner
+    ) public override returns (uint256) {
         VaultStatus status_ = status;
-        if (status_ == VaultStatus.DEPOSITING || status_ == VaultStatus.REPAID) {
+        if (status_ == VaultStatus.DEPOSITING || status_ == VaultStatus.REPAID)
+        {
             return super.redeem(shares, receiver, owner);
         }
         if (status_ == VaultStatus.LIQUIDATED) {
@@ -130,5 +162,49 @@ contract StakeVault is IStakeVault, ERC4626Upgradeable {
         } else {
             return msg.sender;
         }
+    }
+
+    function proveValidator( //TODO adapts (remove) logs and return effective balance
+        bytes32[] calldata validatorProof,
+        SSZ.Validator calldata validatorData,
+        uint64 validatorIndex,
+        uint64 ts
+    ) internal {
+        require(
+            validatorIndex < VALIDATOR_REGISTRY_LIMIT,
+            "validator index out of range"
+        );
+
+        uint256 gI = gIndex + validatorIndex;
+        bytes32 validatoRoot = SSZ.validatorHashTreeRoot(validatorData);
+        bytes32 blockRoot = getParentBlockRoot(ts);
+
+        require(
+            // forgefmt: disable-next-item
+            SSZ.verifyProof(
+                validatorProof,
+                blockRoot,
+                validatoRoot,
+                gI
+            ),
+            "invalid validator proof"
+        );
+
+        emit Accepted(validatorIndex);
+    }
+
+    function getParentBlockRoot(uint64 ts)
+        internal
+        view
+        returns (bytes32 root)
+    {
+        (bool success, bytes memory data) =
+            BEACON_ROOTS.staticcall(abi.encode(ts));
+
+        if (!success || data.length == 0) {
+            revert RootNotFound();
+        }
+
+        root = abi.decode(data, (bytes32));
     }
 }
