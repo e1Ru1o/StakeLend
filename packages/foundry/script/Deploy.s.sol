@@ -3,6 +3,9 @@ pragma solidity ^0.8.19;
 
 import "../contracts/YourContract.sol";
 import "./DeployHelpers.s.sol";
+import "../src/utils/mockUSDC.sol";
+import "../src/StakeLend.sol";
+import "../src/StakeVault.sol";
 
 contract DeployScript is ScaffoldETHDeploy {
     error InvalidPrivateKey(string);
@@ -15,11 +18,32 @@ contract DeployScript is ScaffoldETHDeploy {
             );
         }
         vm.startBroadcast(deployerPrivateKey);
-        YourContract yourContract =
-            new YourContract(vm.addr(deployerPrivateKey));
+        // YourContract yourContract =
+        //     new YourContract(vm.addr(deployerPrivateKey));
+        // console.logString(
+        //     string.concat(
+        //         "YourContract deployed at: ", vm.toString(address(yourContract))
+        //     )
+        // );
+
+        mockUSDC usdc = new mockUSDC();
         console.logString(
             string.concat(
-                "YourContract deployed at: ", vm.toString(address(yourContract))
+                "MockUSDC deployed at: ", vm.toString(address(usdc))
+            )
+        );
+
+        StakeVault stakeVault = new StakeVault();
+        console.logString(
+            string.concat(
+                "StakeVault deployed at: ", vm.toString(address(stakeVault))
+            )
+        );
+
+        StakeLend stakeLend = new StakeLend(stakeVault, usdc, address(0x95222290DD7278Aa3Ddd389Cc1E1d165CC4BAfe5));
+        console.logString(
+            string.concat(
+                "StakeLend deployed at: ", vm.toString(address(stakeLend))
             )
         );
         vm.stopBroadcast();
