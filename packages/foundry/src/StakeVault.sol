@@ -5,6 +5,7 @@ import {IStakeVault, IERC20} from "./interface/IStakeVault.sol";
 import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 import {ERC4626Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import { ValidatorVerifier } from "./utils/ValidatorVerifier.sol";
 
 enum VaultStatus {
     DEPOSITING,
@@ -14,7 +15,7 @@ enum VaultStatus {
     CANCELLED
 }
 
-contract StakeVault is IStakeVault, ERC4626Upgradeable {
+contract StakeVault is IStakeVault, ERC4626Upgradeable, ValidatorVerifier {
     using Math for uint256;
 
     uint256 public requiredAmount;

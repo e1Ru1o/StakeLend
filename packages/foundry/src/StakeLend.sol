@@ -13,8 +13,10 @@ import {EIP7002} from "./utils/EIP-7002.sol";
 contract StakeLend is IStakeLend, EIP7002 {
     using Clones for address;
 
+    uint256 constant DENEB_ZERO_VALIDATOR_GINDEX = 798245441765376;
     uint256 PROOF_EXPIRY_TIME = 5 hours;
     AggregatorV3Interface internal usdDataFeed;
+    
 
     mapping(bytes => address) private _credentialInUse;
     IStakeVault public vaultImplementation;
