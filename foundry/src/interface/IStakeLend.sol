@@ -2,37 +2,49 @@
 pragma solidity ^0.8.24;
 
 interface IStakeLend {
-    event PoolCreated(address indexed pool, bytes32 indexed credentials);
-    event PoolFilled(address indexed depositor, address indexed pool, uint256 indexed deposit);
+    event VaultCreated(address indexed vault, bytes indexed pk);
+    event VaultFilled(address indexed depositor, address indexed vault, uint256 indexed deposit);
 
     /**
-     * Creates a pool for a validator
+     * Creates a vault for a validator
      * @param requiredAmount Amount of USDC to be lendend
-     * @param credentials Credentials of the validator
+     * @param deadline Maximum timestamp for the validator to repay
+     * @param rewardBPS Percent to pay as reward to the lenders
+     * @param pk Credentials of the validator
      */
-    function createPool(uint256 requiredAmount, bytes32 credentials) external returns (uint256 poolId);
+    function createVault(uint256 requiredAmount, uint256 deadline, uint256 rewardBPS, bytes calldata pk)
+        external
+        returns (address vault);
 
     /**
-     * Lenders can fill pools with assets
+     * Lenders can fill vaults with assets
      * @dev If the deposit exeeds the required amount only the amount needed to fill the requirement is taken
-     * @param poolId Id of the pool to fill/deposit assets into
-     * @param depositAmount Amount of assets to add to the pool
+     * @param vault Address of the vault to lend from
+     * @param depositAmount Amount of assets to add to the vault
      */
-    function fillPool(uint256 poolId, uint256 depositAmount) external returns (uint256 depositedAmount);
+    function fillVault(address vault, uint256 depositAmount) external returns (uint256 depositedAmount);
 
     /**
      * @dev Required amount needs to be filled
      * @dev Shares becomes not redeamable
-     * @dev Only owner of the pool can trigger it
-     * @param poolId Id of the pool to lend from
+     * @dev Only owner of the vault can trigger it
+     * @param vault Address of the vault to lend from
      */
-    function lend(uint256 poolId) external;
+    function lend(address vault) external;
 
     /**
      * Lender can take back assets + profit
-     * @dev Callet should have some shares in the pool
+     * @dev Caller should have some shares in the vault
      * @dev Burns all the shares of the lender
-     * @param poolId Pool to claim assets from
+     * @param vault Vault to claim shares from
+     * @param shares Amount of shares to claim
+     * @param receiver Address for the assets to be sent to
+     * @param owner Address of the owner of the shares
      */
-    function claim(uint256 poolId) external;
+    function claim(address vault, uint256 shares, uint256 receiver, uint256 owner) external;
+
+    function getVaultAddress(uint256 requiredAmount, uint256 deadline, uint256 rewardBPS, bytes32 pk)
+        external
+        view
+        returns (address);
 }
