@@ -6,7 +6,7 @@ import {IStakeVault, IERC20} from "./interface/IStakeVault.sol";
 import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 import {AggregatorV3Interface} from "./interface/AggregatorV3Interface.sol";
-import {EIP7002} from "./utils/EIP-7002.sol";
+import {EIP7002} from "./utils/EIP7002.sol";
 
 //TODO pk needs to be bytes calldata
 
