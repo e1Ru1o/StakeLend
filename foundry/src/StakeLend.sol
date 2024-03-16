@@ -8,6 +8,8 @@ import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 import {AggregatorV3Interface} from "./interface/AggregatorV3Interface.sol";
 import {EIP7002} from "./utils/EIP-7002.sol";
 
+//TODO pk needs to be bytes calldata
+
 contract StakeLend is IStakeLend, EIP7002 {
     using Clones for address;
 
@@ -76,9 +78,17 @@ contract StakeLend is IStakeLend, EIP7002 {
     }
 
     function lend(address vault) external {
+        //TODO get pk from vault
         bytes memory data = abi.encodeWithSelector(IStakeVault.lend.selector);
+        //_credentialInUse[pk] = vault;
         _fowardCall(vault, data);
     }
+
+    //TODO payback here and in interface
+    /*function repay(address vault) external {
+        bytes memory data = abi.encodeWithSelector(IERC4626.repay.selector);
+        _fowardCall(vault, data);
+    }*/
 
     function claim(address vault, uint256 shares, uint256 receiver, uint256 owner) external {
         bytes memory data = abi.encodeWithSelector(IERC4626.redeem.selector, shares, receiver, owner);
