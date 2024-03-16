@@ -64,6 +64,13 @@ interface IStakeLend {
      */
     function claim(address vault, uint256 shares, uint256 receiver, uint256 owner) external;
 
+    /**
+     * Repay loan to avoid liquidation
+     * @param vault Vault to repay loan to
+     */
+    function repay(address vault) external;
+    
+
     function getVaultAddress(uint256 requiredAmount, uint256 deadline, uint256 rewardBPS, bytes32 pk)
         external
         view
