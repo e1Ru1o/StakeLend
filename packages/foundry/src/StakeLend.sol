@@ -16,13 +16,16 @@ contract StakeLend is IStakeLend, EIP7002 {
     uint256 constant DENEB_ZERO_VALIDATOR_GINDEX = 798245441765376;
     uint256 PROOF_EXPIRY_TIME = 5 hours;
     AggregatorV3Interface internal usdDataFeed;
-    
 
     mapping(bytes => address) private _credentialInUse;
     IStakeVault public vaultImplementation;
     IERC20 immutable usdc;
 
-    constructor(IStakeVault vaultImplementation_, IERC20 usdc_, address _usdDataFeed) {
+    constructor(
+        IStakeVault vaultImplementation_,
+        IERC20 usdc_,
+        address _usdDataFeed
+    ) {
         vaultImplementation = vaultImplementation_;
         usdc = usdc_;
         usdDataFeed = AggregatorV3Interface(_usdDataFeed);
@@ -47,9 +50,19 @@ contract StakeLend is IStakeLend, EIP7002 {
         }
 
         //verify validator balance is correct
-        if (_validBalanceProof(_validatorPubKey, _validatorBalance, _balanceProof, _proofTimestamp)) {
+        if (
+            _validBalanceProof(
+                _validatorPubKey,
+                _validatorBalance,
+                _balanceProof,
+                _proofTimestamp
+            )
+        ) {
             //check if min collateral ratio is not maintained
-            if (_getEthPriceInUsdc(_validatorBalance) / amountToRepay < minCollateralRatio) {
+            if (
+                _getEthPriceInUsdc(_validatorBalance) / amountToRepay
+                    < minCollateralRatio
+            ) {
                 trigger_exit(_vaultAddress, _validatorPubKey);
             }
         }
@@ -58,24 +71,40 @@ contract StakeLend is IStakeLend, EIP7002 {
         revert();
     }
 
-    function createVault(uint256 requiredAmount, uint256 deadline, uint256 rewardBPS, bytes calldata pk)
-        external
-        override
-        returns (address)
-    {
+    function createVault(
+        uint256 requiredAmount,
+        uint256 deadline,
+        uint256 rewardBPS,
+        bytes calldata pk
+    ) external override returns (address) {
         require(_credentialInUse[pk] == address(0), "Credential already active");
         require(requiredAmount != 0, "Nothing to lend");
         IStakeVault vault = IStakeVault(
             address(vaultImplementation).cloneDeterministic(
-                keccak256(abi.encodePacked(requiredAmount, deadline, rewardBPS, pk))
+                keccak256(
+                    abi.encodePacked(requiredAmount, deadline, rewardBPS, pk)
+                )
             )
         );
-        vault.initialize(requiredAmount, deadline, rewardBPS, pk, usdc, msg.sender);
+        vault.initialize(
+            DENEB_ZERO_VALIDATOR_GINDEX,
+            requiredAmount,
+            deadline,
+            rewardBPS,
+            pk,
+            usdc,
+            msg.sender
+        );
         return address(vault);
     }
 
-    function fillVault(address vault, uint256 depositAmount) external returns (uint256) {
-        bytes memory data = abi.encodeWithSelector(IERC4626.deposit.selector, depositAmount, msg.sender);
+    function fillVault(
+        address vault,
+        uint256 depositAmount
+    ) external returns (uint256) {
+        bytes memory data = abi.encodeWithSelector(
+            IERC4626.deposit.selector, depositAmount, msg.sender
+        );
         return abi.decode(_fowardCall(vault, data), (uint256));
     }
 
@@ -91,18 +120,26 @@ contract StakeLend is IStakeLend, EIP7002 {
         _fowardCall(vault, data);
     }
 
-    function claim(address vault, uint256 shares, uint256 receiver, uint256 owner) external {
-        bytes memory data = abi.encodeWithSelector(IERC4626.redeem.selector, shares, receiver, owner);
+    function claim(
+        address vault,
+        uint256 shares,
+        uint256 receiver,
+        uint256 owner
+    ) external {
+        bytes memory data = abi.encodeWithSelector(
+            IERC4626.redeem.selector, shares, receiver, owner
+        );
         _fowardCall(vault, data);
     }
 
     ////// View functions ///////
 
-    function getVaultAddress(uint256 requiredAmount, uint256 deadline, uint256 rewardBPS, bytes32 pk)
-        public
-        view
-        returns (address)
-    {
+    function getVaultAddress(
+        uint256 requiredAmount,
+        uint256 deadline,
+        uint256 rewardBPS,
+        bytes32 pk
+    ) public view returns (address) {
         return address(vaultImplementation).predictDeterministicAddress(
             keccak256(abi.encodePacked(requiredAmount, deadline, rewardBPS, pk))
         );
@@ -110,8 +147,12 @@ contract StakeLend is IStakeLend, EIP7002 {
 
     ////// Internals ////////
 
-    function _fowardCall(address vault, bytes memory data) internal returns (bytes memory) {
-        bytes memory extraData = abi.encodePacked(data, uint256(uint160(msg.sender)));
+    function _fowardCall(
+        address vault,
+        bytes memory data
+    ) internal returns (bytes memory) {
+        bytes memory extraData =
+            abi.encodePacked(data, uint256(uint160(msg.sender)));
         (bool success, bytes memory returndata) = vault.call(extraData);
 
         if (!success) {
@@ -124,18 +165,23 @@ contract StakeLend is IStakeLend, EIP7002 {
         return returndata;
     }
 
-    function _getEthPriceInUsdc(uint256 _ethAmount) internal view returns (uint256) {
+    function _getEthPriceInUsdc(uint256 _ethAmount)
+        internal
+        view
+        returns (uint256)
+    {
         //chainlink oracle price feed to get eth price in usd
         (, int256 ethPrice,,,) = usdDataFeed.latestRoundData();
         //return total ether value
         return (uint256(ethPrice) * _ethAmount) / 10 ** 20; //get from 8 decimals to 6
     }
 
-    function _validBalanceProof(bytes calldata, uint256, bytes32, uint256 _proofTimestamp)
-        internal
-        view
-        returns (bool)
-    {
+    function _validBalanceProof(
+        bytes calldata,
+        uint256,
+        bytes32,
+        uint256 _proofTimestamp
+    ) internal view returns (bool) {
         if (block.timestamp > _proofTimestamp + PROOF_EXPIRY_TIME) {
             return false;
         }

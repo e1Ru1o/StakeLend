@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: MIT
+//modification of https://github.com/madlabman/eip-4788-proof/
 pragma solidity ^0.8.21;
 
 library SSZ {
@@ -7,15 +8,6 @@ library SSZ {
 
     error BranchHasMissingItem();
     error BranchHasExtraItem();
-
-    /// Withdrawal represents a validator withdrawal from the consensus layer.
-    /// See EIP-4895: Beacon chain push withdrawals as operations.
-    struct Withdrawal {
-        uint64 index;
-        uint64 validatorIndex;
-        address _address;
-        uint64 amount;
-    }
 
     // As defined in phase0/beacon-chain.md:356
     struct Validator {
@@ -36,31 +28,6 @@ library SSZ {
         bytes32 parentRoot;
         bytes32 stateRoot;
         bytes32 bodyRoot;
-    }
-
-    /// Inspired by https://github.com/succinctlabs/telepathy-contracts/blob/main/src/libraries/SimpleSerialize.sol#L59
-    function withdrawalHashTreeRoot(Withdrawal memory withdrawal)
-        internal
-        pure
-        returns (bytes32)
-    {
-        return sha256(
-            bytes.concat(
-                sha256(
-                    bytes.concat(
-                        toLittleEndian(withdrawal.index),
-                        toLittleEndian(withdrawal.validatorIndex)
-                    )
-                ),
-                sha256(
-                    bytes.concat(
-                        bytes20(withdrawal._address),
-                        bytes12(0),
-                        toLittleEndian(withdrawal.amount)
-                    )
-                )
-            )
-        );
     }
 
     function validatorHashTreeRoot(Validator memory validator)
@@ -100,7 +67,7 @@ library SSZ {
             let count := 8
 
             // Loop over levels
-            for { } 1 { } {
+            for {} 1 {} {
                 // Loop over nodes at the given depth
 
                 // Initialize `offset` to the offset of `proof` elements in memory.
@@ -108,7 +75,7 @@ library SSZ {
                 let source := nodes
                 let end := add(source, shl(5, count))
 
-                for { } 1 { } {
+                for {} 1 {} {
                     // Read next two hashes to hash
                     mstore(0x00, mload(source))
                     mstore(0x20, mload(add(source, 0x20)))
@@ -161,7 +128,7 @@ library SSZ {
 
             // Loop over levels
             // prettier-ignore
-            for { } 1 { } {
+            for {} 1 {} {
                 // Loop over nodes at the given depth
 
                 // Initialize `offset` to the offset of `proof` elements in memory.
@@ -170,7 +137,7 @@ library SSZ {
                 let end := add(source, shl(5, count))
 
                 // prettier-ignore
-                for { } 1 { } {
+                for {} 1 {} {
                     // TODO: Can be replaced with `mcopy` once it's available, see EIP-5656.
                     // Read next two hashes to hash
                     mstore(0x00, mload(source))
@@ -258,7 +225,7 @@ library SSZ {
                 // Initialize `offset` to the offset of `proof` in the calldata.
                 let offset := proof.offset
                 // Iterate over proof elements to compute root hash.
-                for { } 1 { } {
+                for {} 1 {} {
                     // Slot of `leaf` in scratch space.
                     // If the condition is true: 0x20, otherwise: 0x00.
                     let scratch := shl(5, and(index, 1))
@@ -294,11 +261,10 @@ library SSZ {
         }
     }
 
-    function concatGindices(uint64 a, uint64 b)
-        internal
-        pure
-        returns (uint64)
-    {
+    function concatGindices(
+        uint64 a,
+        uint64 b
+    ) internal pure returns (uint64) {
         uint64 stepBitLen = uint64(log2(b));
         return uint64(a << stepBitLen | b ^ (1 << stepBitLen));
     }

@@ -5,6 +5,7 @@ import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
 
 interface IStakeVault {
     function initialize(
+        uint256 _gIndex,
         uint256 requiredAmount_,
         uint256 deadline_,
         uint256 rewardBPS_,

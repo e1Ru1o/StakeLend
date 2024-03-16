@@ -3,7 +3,11 @@ pragma solidity ^0.8.24;
 
 interface IStakeLend {
     event VaultCreated(address indexed vault, bytes indexed pk);
-    event VaultFilled(address indexed depositor, address indexed vault, uint256 indexed deposit);
+    event VaultFilled(
+        address indexed depositor,
+        address indexed vault,
+        uint256 indexed deposit
+    );
 
     /**
      * Creates a vault for a validator
@@ -12,9 +16,12 @@ interface IStakeLend {
      * @param rewardBPS Percent to pay as reward to the lenders
      * @param pk Credentials of the validator
      */
-    function createVault(uint256 requiredAmount, uint256 deadline, uint256 rewardBPS, bytes calldata pk)
-        external
-        returns (address vault);
+    function createVault(
+        uint256 requiredAmount,
+        uint256 deadline,
+        uint256 rewardBPS,
+        bytes calldata pk
+    ) external returns (address vault);
 
     /**
      * Lenders can fill vaults with assets
@@ -22,7 +29,10 @@ interface IStakeLend {
      * @param vault Address of the vault to lend from
      * @param depositAmount Amount of assets to add to the vault
      */
-    function fillVault(address vault, uint256 depositAmount) external returns (uint256 depositedAmount);
+    function fillVault(
+        address vault,
+        uint256 depositAmount
+    ) external returns (uint256 depositedAmount);
 
     /**
      * @dev Required amount needs to be filled
@@ -62,17 +72,23 @@ interface IStakeLend {
      * @param receiver Address for the assets to be sent to
      * @param owner Address of the owner of the shares
      */
-    function claim(address vault, uint256 shares, uint256 receiver, uint256 owner) external;
+    function claim(
+        address vault,
+        uint256 shares,
+        uint256 receiver,
+        uint256 owner
+    ) external;
 
     /**
      * Repay loan to avoid liquidation
      * @param vault Vault to repay loan to
      */
     function repay(address vault) external;
-    
 
-    function getVaultAddress(uint256 requiredAmount, uint256 deadline, uint256 rewardBPS, bytes32 pk)
-        external
-        view
-        returns (address);
+    function getVaultAddress(
+        uint256 requiredAmount,
+        uint256 deadline,
+        uint256 rewardBPS,
+        bytes32 pk
+    ) external view returns (address);
 }
