@@ -28,9 +28,7 @@ contract DeployScript is ScaffoldETHDeploy {
 
         mockUSDC usdc = new mockUSDC();
         console.logString(
-            string.concat(
-                "MockUSDC deployed at: ", vm.toString(address(usdc))
-            )
+            string.concat("MockUSDC deployed at: ", vm.toString(address(usdc)))
         );
 
         StakeVault stakeVault = new StakeVault();
@@ -40,7 +38,11 @@ contract DeployScript is ScaffoldETHDeploy {
             )
         );
 
-        StakeLend stakeLend = new StakeLend(stakeVault, usdc, address(0x95222290DD7278Aa3Ddd389Cc1E1d165CC4BAfe5));
+        StakeLend stakeLend = new StakeLend(
+            stakeVault,
+            usdc,
+            address(0x95222290DD7278Aa3Ddd389Cc1E1d165CC4BAfe5)
+        );
         console.logString(
             string.concat(
                 "StakeLend deployed at: ", vm.toString(address(stakeLend))
