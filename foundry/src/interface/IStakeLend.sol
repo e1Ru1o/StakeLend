@@ -44,7 +44,16 @@ interface IStakeLend {
      *  -unmet deadline
      *  -validator inactivity
      * @param poolId Pool to liquidate
+     * @param validatorIndex Index of the validator
+     * @param validatorBalance Balance of the validator
      * @param balanceProof zk-proof of the validator beacon chain balance
+     * @param proofTimestamp Timestamp of the zk-proof
      */
-    function liquidate(uint256 poolId, bytes32 balanceProof) external;
+    function liquidate(
+        uint256 poolId,
+        uint256 validatorIndex,
+        uint256 validatorBalance,
+        bytes32 balanceProof,
+        uint256 proofTimestamp
+    ) external;
 }
