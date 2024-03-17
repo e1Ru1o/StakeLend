@@ -36,13 +36,13 @@ contract StakeVault is IStakeVault, ERC4626Upgradeable, EIP7002 {
         0x00000000219ab540356cBB839Cbe05303d7705Fa;
     uint64 constant VALIDATOR_REGISTRY_LIMIT = 2 ** 40;
     uint256 constant LIQUIDATION_FLOOR_LIMIT_BPS = 1_000; //10%
-    uint256 PROOF_EXPIRY_TIME = 5 hours;
+    uint256 PROOF_EXPIRY_TIME = 12 hours;
 
     AggregatorV3Interface internal usdDataFeed;
     uint256 public requiredAmount;
     uint256 public deadline;
     uint256 public rewardBPS;
-    bytes private _pk;
+    bytes public _pk;
     address private stakeLend;
     address private validator;
     VaultStatus public status;
@@ -50,8 +50,6 @@ contract StakeVault is IStakeVault, ERC4626Upgradeable, EIP7002 {
     /// @dev Generalized index of the first validator struct root in the
     /// registry.
     uint256 public gIndex;
-
-    event Accepted(uint64 indexed validatorIndex); //todo take care of this
 
     error RootNotFound();
 
@@ -178,6 +176,7 @@ contract StakeVault is IStakeVault, ERC4626Upgradeable, EIP7002 {
         uint64 timestamp
     ) external override {
         require(status == VaultStatus.LENDING, "Nothing to liquidate");
+        require(timestamp + PROOF_EXPIRY_TIME > block.timestamp, "Proof is expired");
 
         //reverts if proof is not valid
         (bytes calldata validatorPubKey, uint256 validatorBalance) =
@@ -254,26 +253,13 @@ contract StakeVault is IStakeVault, ERC4626Upgradeable, EIP7002 {
         return (uint256(ethPrice) * _ethAmount) / 10 ** 20; //get from 8 decimals to 6
     }
 
-    function _validBalanceProof(
-        bytes calldata,
-        uint256,
-        bytes32,
-        uint256 _proofTimestamp
-    ) internal view returns (bool) {
-        if (block.timestamp > _proofTimestamp + PROOF_EXPIRY_TIME) {
-            return false;
-        }
-        //TODO check proof is valid TODO REMOVE DELETE
-        return true;
-    }
-
     //@dev checks if the proof is valid and if so returns the validators public key and effective balance
-    function proveValidator( //TODO adapts (remove) logs and return effective balance
+    function proveValidator(
         bytes32[] calldata validatorProof,
         SSZ.Validator calldata validatorData,
         uint64 validatorIndex,
         uint64 ts
-    ) internal returns (bytes calldata, uint256) {
+    ) internal view returns (bytes calldata, uint256) {
         require(
             validatorIndex < VALIDATOR_REGISTRY_LIMIT,
             "validator index out of range"
@@ -293,8 +279,6 @@ contract StakeVault is IStakeVault, ERC4626Upgradeable, EIP7002 {
             ),
             "invalid validator proof"
         );
-
-        emit Accepted(validatorIndex);
 
         return (validatorData.pubkey, uint256(validatorData.effectiveBalance));
     }
