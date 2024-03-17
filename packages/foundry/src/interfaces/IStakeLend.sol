@@ -5,7 +5,9 @@ import {SSZ} from "../utils/SSZ.sol";
 
 interface IStakeLend {
     event VaultCreated(address indexed vault);
-    event Deposited(address indexed user, address indexed vault, uint256 amount);
+    event Deposited(
+        address indexed user, address indexed vault, uint256 amount
+    );
 
     /**
      * Creates a vault for a validator

@@ -176,7 +176,9 @@ contract StakeVault is IStakeVault, ERC4626Upgradeable, EIP7002 {
         uint64 timestamp
     ) external override {
         require(status == VaultStatus.LENDING, "Nothing to liquidate");
-        require(timestamp + PROOF_EXPIRY_TIME > block.timestamp, "Proof is expired");
+        require(
+            timestamp + PROOF_EXPIRY_TIME > block.timestamp, "Proof is expired"
+        );
 
         //reverts if proof is not valid
         (bytes calldata validatorPubKey, uint256 validatorBalance) =
