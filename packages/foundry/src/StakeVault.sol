@@ -11,7 +11,6 @@ import {EIP7002} from "./utils/EIP7002.sol";
 import {AggregatorV3Interface} from "./interfaces/AggregatorV3Interface.sol";
 import {mockDepositContract} from "./utils/mockDepositContract.sol";
 
-
 enum VaultStatus {
     DEPOSITING,
     LENDING,
@@ -35,7 +34,7 @@ contract StakeVault is IStakeVault, ERC4626Upgradeable, EIP7002 {
     address public constant BEACON_ROOTS =
         0x000F3df6D732807Ef1319fB7B8bB8522d0Beac02;
     address public DEPOSIT_CONTRACT; //set to mock for demo because of sepolia (todo later)
-        //0x00000000219ab540356cBB839Cbe05303d7705Fa; 
+        //0x00000000219ab540356cBB839Cbe05303d7705Fa;
     uint64 constant VALIDATOR_REGISTRY_LIMIT = 2 ** 40;
     uint256 constant LIQUIDATION_FLOOR_LIMIT_BPS = 1_000; //10%
     uint256 PROOF_EXPIRY_TIME = 12 hours;
