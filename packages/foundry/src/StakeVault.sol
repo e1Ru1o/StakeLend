@@ -2,12 +2,13 @@
 //modification of https://github.com/madlabman/eip-4788-proof/
 pragma solidity ^0.8.24;
 
-import {IStakeVault, IERC20} from "./interfaces/IStakeVault.sol";
+import {IStakeVault, IERC20, SSZ} from "./interfaces/IStakeVault.sol";
 import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 import {ERC4626Upgradeable} from
     "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
-import {SSZ} from "./utils/SSZ.sol";
+import {EIP7002} from "./utils/EIP7002.sol";
+import {AggregatorV3Interface} from "./interfaces/AggregatorV3Interface.sol";
 
 enum VaultStatus {
     DEPOSITING,
@@ -17,13 +18,27 @@ enum VaultStatus {
     CANCELLED
 }
 
-contract StakeVault is IStakeVault, ERC4626Upgradeable {
+interface IDepositContract {
+    function deposit(
+        bytes calldata pubkey,
+        bytes calldata withdrawal_credentials,
+        bytes calldata signature,
+        bytes32 depositDataRoot
+    ) external payable;
+}
+
+contract StakeVault is IStakeVault, ERC4626Upgradeable, EIP7002 {
     using Math for uint256;
 
     address public constant BEACON_ROOTS =
         0x000F3df6D732807Ef1319fB7B8bB8522d0Beac02;
+    address public constant DEPOSIT_CONTRACT =
+        0x00000000219ab540356cBB839Cbe05303d7705Fa;
     uint64 constant VALIDATOR_REGISTRY_LIMIT = 2 ** 40;
+    uint256 constant LIQUIDATION_FLOOR_LIMIT_BPS = 1_000; //10%
+    uint256 PROOF_EXPIRY_TIME = 5 hours;
 
+    AggregatorV3Interface internal usdDataFeed;
     uint256 public requiredAmount;
     uint256 public deadline;
     uint256 public rewardBPS;
@@ -49,16 +64,16 @@ contract StakeVault is IStakeVault, ERC4626Upgradeable {
         uint256 requiredAmount_,
         uint256 deadline_,
         uint256 rewardBPS_,
-        bytes calldata pk,
         IERC20 usdc,
+        address _usdDataFeed,
         address validator_
     ) external override initializer {
         gIndex = _gIndex;
         __ERC4626_init(usdc);
+        usdDataFeed = AggregatorV3Interface(_usdDataFeed);
         requiredAmount = requiredAmount_;
         deadline = deadline_;
         rewardBPS = rewardBPS_;
-        _pk = pk;
         stakeLend = msg.sender;
         validator = validator_;
         status = VaultStatus.DEPOSITING;
@@ -125,16 +140,80 @@ contract StakeVault is IStakeVault, ERC4626Upgradeable {
         revert("Not redeemable");
     }
 
-    function lend() external {
+    function lend(
+        bytes calldata pk,
+        bytes calldata signature,
+        bytes32 depositDataRoot
+    ) external payable {
         require(_msgSender() == validator, "Caller is not the validator");
+        require(
+            msg.sender == stakeLend, "Call needs to be router trough StakeLend"
+        );
         require(status == VaultStatus.DEPOSITING, "Not possible to lend");
+        require(msg.value == 32 ether, "No enough assets to stake");
+
+        bytes32 withdrawalCredentials =
+            bytes32(uint256(uint160(address(this))) | (uint256(0x1) << 248));
+
+        IDepositContract(DEPOSIT_CONTRACT).deposit{value: msg.value}(
+            pk,
+            abi.encodePacked(withdrawalCredentials),
+            signature,
+            depositDataRoot
+        );
 
         uint256 balance = IERC20(asset()).balanceOf(address(this));
         require(balance >= requiredAmount, "Not enough assets deposited");
 
         status = VaultStatus.LENDING;
+        _pk = pk;
 
         IERC20(asset()).transfer(validator, balance);
+    }
+
+    function liquidate(
+        bytes32[] calldata validatorProof,
+        SSZ.Validator calldata validatorData,
+        uint64 validatorIndex,
+        uint64 timestamp
+    ) external override {
+        require(status == VaultStatus.LENDING, "Nothing to liquidate");
+
+        //reverts if proof is not valid
+        (bytes calldata validatorPubKey, uint256 validatorBalance) =
+        proveValidator(validatorProof, validatorData, validatorIndex, timestamp);
+
+        require(
+            keccak256(_pk) == keccak256(validatorPubKey),
+            "Validator public key does not belong to vault"
+        );
+
+        //check if min collateral ratio is not maintained
+        uint256 owedAmount =
+            (requiredAmount + (requiredAmount * rewardBPS) / 10000);
+        uint256 currentAmount = _getEthPriceInUsdc(validatorBalance);
+        if (
+            owedAmount > currentAmount
+                || currentAmount - owedAmount
+                    < ((owedAmount * LIQUIDATION_FLOOR_LIMIT_BPS) / 10000)
+        ) {
+            trigger_exit(address(this), validatorPubKey);
+            status == VaultStatus.LIQUIDATED;
+        } else {
+            //revert liquidation
+            revert();
+        }
+    }
+
+    function liquidateExpiredDebt() external override {
+        require(status == VaultStatus.LENDING, "Nothing to liquidate");
+
+        //check if current timestamp is past loan deadline
+        if (block.timestamp > deadline) {
+            trigger_exit(address(this), _pk);
+            status = VaultStatus.LIQUIDATED;
+            return;
+        }
     }
 
     function repay() external {
@@ -164,12 +243,37 @@ contract StakeVault is IStakeVault, ERC4626Upgradeable {
         }
     }
 
+    function _getEthPriceInUsdc(uint256 _ethAmount)
+        internal
+        view
+        returns (uint256)
+    {
+        //chainlink oracle price feed to get eth price in usd
+        (, int256 ethPrice,,,) = usdDataFeed.latestRoundData();
+        //return total ether value
+        return (uint256(ethPrice) * _ethAmount) / 10 ** 20; //get from 8 decimals to 6
+    }
+
+    function _validBalanceProof(
+        bytes calldata,
+        uint256,
+        bytes32,
+        uint256 _proofTimestamp
+    ) internal view returns (bool) {
+        if (block.timestamp > _proofTimestamp + PROOF_EXPIRY_TIME) {
+            return false;
+        }
+        //TODO check proof is valid TODO REMOVE DELETE
+        return true;
+    }
+
+    //@dev checks if the proof is valid and if so returns the validators public key and effective balance
     function proveValidator( //TODO adapts (remove) logs and return effective balance
         bytes32[] calldata validatorProof,
         SSZ.Validator calldata validatorData,
         uint64 validatorIndex,
         uint64 ts
-    ) internal {
+    ) internal returns (bytes calldata, uint256) {
         require(
             validatorIndex < VALIDATOR_REGISTRY_LIMIT,
             "validator index out of range"
@@ -191,6 +295,8 @@ contract StakeVault is IStakeVault, ERC4626Upgradeable {
         );
 
         emit Accepted(validatorIndex);
+
+        return (validatorData.pubkey, uint256(validatorData.effectiveBalance));
     }
 
     function getParentBlockRoot(uint64 ts)

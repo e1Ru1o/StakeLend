@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import {SSZ} from "../utils/SSZ.sol";
+
 interface IStakeLend {
     event VaultCreated(address indexed vault, bytes indexed pk);
     event VaultFilled(
@@ -14,13 +16,11 @@ interface IStakeLend {
      * @param requiredAmount Amount of USDC to be lendend
      * @param deadline Maximum timestamp for the validator to repay
      * @param rewardBPS Percent to pay as reward to the lenders
-     * @param pk Credentials of the validator
      */
     function createVault(
         uint256 requiredAmount,
         uint256 deadline,
-        uint256 rewardBPS,
-        bytes calldata pk
+        uint256 rewardBPS
     ) external returns (address vault);
 
     /**
@@ -39,8 +39,16 @@ interface IStakeLend {
      * @dev Shares becomes not redeamable
      * @dev Only owner of the vault can trigger it
      * @param vault Address of the vault to lend from
+     * @param pk A BLS12-381 public key.
+     * @param signature A BLS12-381 signature.
+     * @param depositDataRoot The SHA-256 hash of the SSZ-encoded DepositData object.
      */
-    function lend(address vault) external;
+    function lend(
+        address vault,
+        bytes calldata pk,
+        bytes calldata signature,
+        bytes32 depositDataRoot
+    ) external payable;
 
     /**
      * Triggers the validators exit from the beacon chain if
@@ -50,18 +58,25 @@ interface IStakeLend {
      *  -unmet deadline
      *  -validator inactivity
      * @param vault Vault to liquidate
-     * @param _validatorPubKey Public key of the validator
-     * @param validatorBalance Balance of the validator
-     * @param balanceProof zk-proof of the validator beacon chain balance
-     * @param proofTimestamp Timestamp of the zk-proof
+     * @param validatorProof proof of the validator beacon chain validator object
+     * @param validatorData Validator object data
+     * @param validatorIndex index of the validator
+     * @param timestamp timestamp of the child block (since EIP-4788 stores hash of the parent)
      */
     function liquidate(
         address vault,
-        bytes calldata _validatorPubKey,
-        uint256 validatorBalance,
-        bytes32 balanceProof,
-        uint256 proofTimestamp
+        bytes32[] calldata validatorProof,
+        SSZ.Validator calldata validatorData,
+        uint64 validatorIndex,
+        uint64 timestamp
     ) external;
+
+    /**
+     * Triggers the validators exit from the beacon chain if
+     * the repayment deadline is passed
+     * @param vault Address of the vault expired
+     */
+    function liquidateExpiredDebt(address vault) external;
 
     /**
      * Lender can take back assets + profit
