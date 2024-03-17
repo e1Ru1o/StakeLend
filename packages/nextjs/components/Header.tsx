@@ -24,6 +24,14 @@ export const menuLinks: HeaderMenuLink[] = [
     href: "/vaults",
   },
   {
+    label: "Deposited",
+    href: "/deposited",
+  },
+  {
+    label: "Created",
+    href: "/created",
+  },
+  {
     label: "Debug Contracts",
     href: "/debug",
     icon: <BugAntIcon className="h-4 w-4" />,
