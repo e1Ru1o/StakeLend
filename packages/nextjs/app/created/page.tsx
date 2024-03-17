@@ -2,7 +2,8 @@ import type { NextPage } from "next";
 import { Address } from "~~/components/scaffold-eth";
 import { getMetadata } from "~~/utils/scaffold-eth/getMetadata";
 import { NewVaultModal } from "./_components/newVaultModal";
-// import { DepositModal } from "./_components/depositModal";
+import { LendModal } from "./_components/lendModal";
+import { RepayModal } from "./_components/repayModal";
 
 export const metadata = getMetadata({
   title: "Created Vaults",
@@ -68,7 +69,8 @@ const Created: NextPage = () => {
               <div className="flex-initial w-32 h-14">{v.totalDeposit} USDC</div>
             </div>
             <div className="card-actions justify-end">
-              {/* <DepositModal address={v.address}/> */}
+              <LendModal address={v.address}/>
+              <RepayModal address={v.address}/>
             </div>
           </div>
         </div>
