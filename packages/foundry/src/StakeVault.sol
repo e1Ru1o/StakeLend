@@ -9,6 +9,8 @@ import {ERC4626Upgradeable} from
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {EIP7002} from "./utils/EIP7002.sol";
 import {AggregatorV3Interface} from "./interfaces/AggregatorV3Interface.sol";
+import {mockDepositContract} from "./utils/mockDepositContract.sol";
+
 
 enum VaultStatus {
     DEPOSITING,
@@ -32,26 +34,24 @@ contract StakeVault is IStakeVault, ERC4626Upgradeable, EIP7002 {
 
     address public constant BEACON_ROOTS =
         0x000F3df6D732807Ef1319fB7B8bB8522d0Beac02;
-    address public constant DEPOSIT_CONTRACT =
-        0x00000000219ab540356cBB839Cbe05303d7705Fa;
+    address public DEPOSIT_CONTRACT; //set to mock for demo because of sepolia (todo later)
+        //0x00000000219ab540356cBB839Cbe05303d7705Fa; 
     uint64 constant VALIDATOR_REGISTRY_LIMIT = 2 ** 40;
     uint256 constant LIQUIDATION_FLOOR_LIMIT_BPS = 1_000; //10%
-    uint256 PROOF_EXPIRY_TIME = 5 hours;
+    uint256 PROOF_EXPIRY_TIME = 12 hours;
 
     AggregatorV3Interface internal usdDataFeed;
     uint256 public requiredAmount;
     uint256 public deadline;
     uint256 public rewardBPS;
-    bytes private _pk;
-    address private stakeLend;
-    address private validator;
+    bytes public _pk;
+    address public stakeLend;
+    address public validator;
     VaultStatus public status;
 
     /// @dev Generalized index of the first validator struct root in the
     /// registry.
     uint256 public gIndex;
-
-    event Accepted(uint64 indexed validatorIndex); //todo take care of this
 
     error RootNotFound();
 
@@ -77,6 +77,7 @@ contract StakeVault is IStakeVault, ERC4626Upgradeable, EIP7002 {
         stakeLend = msg.sender;
         validator = validator_;
         status = VaultStatus.DEPOSITING;
+        DEPOSIT_CONTRACT = address(new mockDepositContract());
     }
 
     function deposit(
@@ -150,7 +151,7 @@ contract StakeVault is IStakeVault, ERC4626Upgradeable, EIP7002 {
             msg.sender == stakeLend, "Call needs to be router trough StakeLend"
         );
         require(status == VaultStatus.DEPOSITING, "Not possible to lend");
-        require(msg.value == 32 ether, "No enough assets to stake");
+        require(msg.value == 0.01 ether, "No enough assets to stake"); //set to 0.01 ether instead of 32 for demo (todo later)
 
         bytes32 withdrawalCredentials =
             bytes32(uint256(uint160(address(this))) | (uint256(0x1) << 248));
@@ -178,6 +179,9 @@ contract StakeVault is IStakeVault, ERC4626Upgradeable, EIP7002 {
         uint64 timestamp
     ) external override {
         require(status == VaultStatus.LENDING, "Nothing to liquidate");
+        require(
+            timestamp + PROOF_EXPIRY_TIME > block.timestamp, "Proof is expired"
+        );
 
         //reverts if proof is not valid
         (bytes calldata validatorPubKey, uint256 validatorBalance) =
@@ -254,26 +258,13 @@ contract StakeVault is IStakeVault, ERC4626Upgradeable, EIP7002 {
         return (uint256(ethPrice) * _ethAmount) / 10 ** 20; //get from 8 decimals to 6
     }
 
-    function _validBalanceProof(
-        bytes calldata,
-        uint256,
-        bytes32,
-        uint256 _proofTimestamp
-    ) internal view returns (bool) {
-        if (block.timestamp > _proofTimestamp + PROOF_EXPIRY_TIME) {
-            return false;
-        }
-        //TODO check proof is valid TODO REMOVE DELETE
-        return true;
-    }
-
     //@dev checks if the proof is valid and if so returns the validators public key and effective balance
-    function proveValidator( //TODO adapts (remove) logs and return effective balance
+    function proveValidator(
         bytes32[] calldata validatorProof,
         SSZ.Validator calldata validatorData,
         uint64 validatorIndex,
         uint64 ts
-    ) internal returns (bytes calldata, uint256) {
+    ) internal view returns (bytes calldata, uint256) {
         require(
             validatorIndex < VALIDATOR_REGISTRY_LIMIT,
             "validator index out of range"
@@ -293,8 +284,6 @@ contract StakeVault is IStakeVault, ERC4626Upgradeable, EIP7002 {
             ),
             "invalid validator proof"
         );
-
-        emit Accepted(validatorIndex);
 
         return (validatorData.pubkey, uint256(validatorData.effectiveBalance));
     }

@@ -48,6 +48,7 @@ contract StakeLend is IStakeLend {
             usdDataFeed,
             msg.sender
         );
+        emit VaultCreated(address(vault));
         return address(vault);
     }
 
@@ -58,6 +59,7 @@ contract StakeLend is IStakeLend {
         bytes memory data = abi.encodeWithSelector(
             IERC4626.deposit.selector, depositAmount, msg.sender
         );
+        emit Deposited(msg.sender, vault, depositAmount);
         return abi.decode(_fowardCall(vault, data, 0), (uint256));
     }
 
