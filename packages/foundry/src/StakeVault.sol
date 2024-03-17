@@ -9,6 +9,8 @@ import {ERC4626Upgradeable} from
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {EIP7002} from "./utils/EIP7002.sol";
 import {AggregatorV3Interface} from "./interfaces/AggregatorV3Interface.sol";
+import {mockDepositContract} from "./utils/mockDepositContract.sol";
+
 
 enum VaultStatus {
     DEPOSITING,
@@ -32,8 +34,8 @@ contract StakeVault is IStakeVault, ERC4626Upgradeable, EIP7002 {
 
     address public constant BEACON_ROOTS =
         0x000F3df6D732807Ef1319fB7B8bB8522d0Beac02;
-    address public constant DEPOSIT_CONTRACT =
-        0x00000000219ab540356cBB839Cbe05303d7705Fa;
+    address public DEPOSIT_CONTRACT; //set to mock for demo because of sepolia (todo later)
+        //0x00000000219ab540356cBB839Cbe05303d7705Fa; 
     uint64 constant VALIDATOR_REGISTRY_LIMIT = 2 ** 40;
     uint256 constant LIQUIDATION_FLOOR_LIMIT_BPS = 1_000; //10%
     uint256 PROOF_EXPIRY_TIME = 12 hours;
@@ -43,8 +45,8 @@ contract StakeVault is IStakeVault, ERC4626Upgradeable, EIP7002 {
     uint256 public deadline;
     uint256 public rewardBPS;
     bytes public _pk;
-    address private stakeLend;
-    address private validator;
+    address public stakeLend;
+    address public validator;
     VaultStatus public status;
 
     /// @dev Generalized index of the first validator struct root in the
@@ -75,6 +77,7 @@ contract StakeVault is IStakeVault, ERC4626Upgradeable, EIP7002 {
         stakeLend = msg.sender;
         validator = validator_;
         status = VaultStatus.DEPOSITING;
+        DEPOSIT_CONTRACT = address(new mockDepositContract());
     }
 
     function deposit(
@@ -148,7 +151,7 @@ contract StakeVault is IStakeVault, ERC4626Upgradeable, EIP7002 {
             msg.sender == stakeLend, "Call needs to be router trough StakeLend"
         );
         require(status == VaultStatus.DEPOSITING, "Not possible to lend");
-        require(msg.value == 32 ether, "No enough assets to stake");
+        require(msg.value == 0.01 ether, "No enough assets to stake"); //set to 0.01 ether instead of 32 for demo (todo later)
 
         bytes32 withdrawalCredentials =
             bytes32(uint256(uint160(address(this))) | (uint256(0x1) << 248));
