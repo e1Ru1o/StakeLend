@@ -16,13 +16,11 @@ interface IStakeLend {
      * @param requiredAmount Amount of USDC to be lendend
      * @param deadline Maximum timestamp for the validator to repay
      * @param rewardBPS Percent to pay as reward to the lenders
-     * @param pk Credentials of the validator
      */
     function createVault(
         uint256 requiredAmount,
         uint256 deadline,
-        uint256 rewardBPS,
-        bytes calldata pk
+        uint256 rewardBPS
     ) external returns (address vault);
 
     /**
@@ -41,8 +39,16 @@ interface IStakeLend {
      * @dev Shares becomes not redeamable
      * @dev Only owner of the vault can trigger it
      * @param vault Address of the vault to lend from
+     * @param pk A BLS12-381 public key.
+     * @param signature A BLS12-381 signature.
+     * @param depositDataRoot The SHA-256 hash of the SSZ-encoded DepositData object.
      */
-    function lend(address vault) external;
+    function lend(
+        address vault,
+        bytes calldata pk,
+        bytes calldata signature,
+        bytes32 depositDataRoot
+    ) external payable;
 
     /**
      * Triggers the validators exit from the beacon chain if
@@ -64,6 +70,13 @@ interface IStakeLend {
         uint64 validatorIndex,
         uint64 timestamp
     ) external;
+
+    /**
+     * Triggers the validators exit from the beacon chain if
+     * the repayment deadline is passed
+     * @param vault Address of the vault expired
+     */
+    function liquidateExpiredDebt(address vault) external;
 
     /**
      * Lender can take back assets + profit

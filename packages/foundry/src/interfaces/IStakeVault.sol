@@ -10,13 +10,22 @@ interface IStakeVault {
         uint256 requiredAmount_,
         uint256 deadline_,
         uint256 rewardBPS_,
-        bytes calldata pk,
         IERC20 usdc,
         address _usdDataFeed,
         address validator
     ) external;
 
-    function lend() external;
+    /**
+     * Lend the assets deposited in the vault
+     * @param pk A BLS12-381 public key.
+     * @param signature A BLS12-381 signature.
+     * @param depositDataRoot The SHA-256 hash of the SSZ-encoded DepositData object.
+     */
+    function lend(
+        bytes calldata pk,
+        bytes calldata signature,
+        bytes32 depositDataRoot
+    ) external payable;
 
     function repay() external;
 
@@ -26,4 +35,10 @@ interface IStakeVault {
         uint64 validatorIndex,
         uint64 timestamp
     ) external;
+
+    /**
+     * Triggers the validators exit from the beacon chain if
+     * the repayment deadline is passed
+     */
+    function liquidateExpiredDebt() external;
 }

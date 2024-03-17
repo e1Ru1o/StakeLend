@@ -12,6 +12,7 @@ contract StakeLend is IStakeLend {
     uint256 constant DENEB_ZERO_VALIDATOR_GINDEX = 798245441765376;
 
     mapping(bytes => address) private _credentialInUse;
+    mapping(address => uint256) private _userNonce;
     IStakeVault public vaultImplementation;
     IERC20 immutable usdc;
     address usdDataFeed;
@@ -29,24 +30,20 @@ contract StakeLend is IStakeLend {
     function createVault(
         uint256 requiredAmount,
         uint256 deadline,
-        uint256 rewardBPS,
-        bytes calldata pk
+        uint256 rewardBPS
     ) external override returns (address) {
-        require(_credentialInUse[pk] == address(0), "Credential already active");
         require(requiredAmount != 0, "Nothing to lend");
         IStakeVault vault = IStakeVault(
             address(vaultImplementation).cloneDeterministic(
-                keccak256(
-                    abi.encodePacked(requiredAmount, deadline, rewardBPS, pk)
-                )
+                keccak256(abi.encode(_userNonce[msg.sender]))
             )
         );
+        _userNonce[msg.sender] += 1;
         vault.initialize(
             DENEB_ZERO_VALIDATOR_GINDEX,
             requiredAmount,
             deadline,
             rewardBPS,
-            pk,
             usdc,
             usdDataFeed,
             msg.sender
@@ -61,14 +58,23 @@ contract StakeLend is IStakeLend {
         bytes memory data = abi.encodeWithSelector(
             IERC4626.deposit.selector, depositAmount, msg.sender
         );
-        return abi.decode(_fowardCall(vault, data), (uint256));
+        return abi.decode(_fowardCall(vault, data, 0), (uint256));
     }
 
-    function lend(address vault) external {
-        //TODO get pk from vault
-        bytes memory data = abi.encodeWithSelector(IStakeVault.lend.selector);
-        //_credentialInUse[pk] = vault;
-        _fowardCall(vault, data);
+    function lend(
+        address vault,
+        bytes calldata pk,
+        bytes calldata signature,
+        bytes32 depositDataRoot
+    ) external payable {
+        require(_credentialInUse[pk] == address(0), "Credential already active");
+
+        _credentialInUse[pk] = vault;
+
+        bytes memory data = abi.encodeWithSelector(
+            IStakeVault.lend.selector, pk, signature, depositDataRoot
+        );
+        _fowardCall(vault, data, msg.value);
     }
 
     function liquidate(
@@ -85,12 +91,18 @@ contract StakeLend is IStakeLend {
             validatorIndex,
             timestamp
         );
-        _fowardCall(vault, data);
+        _fowardCall(vault, data, 0);
     }
 
     function repay(address vault) external {
         bytes memory data = abi.encodeWithSelector(IStakeVault.repay.selector);
-        _fowardCall(vault, data);
+        _fowardCall(vault, data, 0);
+    }
+
+    function liquidateExpiredDebt(address vault) external {
+        bytes memory data =
+            abi.encodeWithSelector(IStakeVault.liquidateExpiredDebt.selector);
+        _fowardCall(vault, data, 0);
     }
 
     function claim(
@@ -102,7 +114,7 @@ contract StakeLend is IStakeLend {
         bytes memory data = abi.encodeWithSelector(
             IERC4626.redeem.selector, shares, receiver, owner
         );
-        _fowardCall(vault, data);
+        _fowardCall(vault, data, 0);
     }
 
     ////// View functions ///////
@@ -122,11 +134,13 @@ contract StakeLend is IStakeLend {
 
     function _fowardCall(
         address vault,
-        bytes memory data
+        bytes memory data,
+        uint256 value
     ) internal returns (bytes memory) {
         bytes memory extraData =
             abi.encodePacked(data, uint256(uint160(msg.sender)));
-        (bool success, bytes memory returndata) = vault.call(extraData);
+        (bool success, bytes memory returndata) =
+            vault.call{value: value}(extraData);
 
         if (!success) {
             if (returndata.length == 0) revert();

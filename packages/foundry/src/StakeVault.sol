@@ -18,11 +18,22 @@ enum VaultStatus {
     CANCELLED
 }
 
+interface IDepositContract {
+    function deposit(
+        bytes calldata pubkey,
+        bytes calldata withdrawal_credentials,
+        bytes calldata signature,
+        bytes32 depositDataRoot
+    ) external payable;
+}
+
 contract StakeVault is IStakeVault, ERC4626Upgradeable, EIP7002 {
     using Math for uint256;
 
     address public constant BEACON_ROOTS =
         0x000F3df6D732807Ef1319fB7B8bB8522d0Beac02;
+    address public constant DEPOSIT_CONTRACT =
+        0x00000000219ab540356cBB839Cbe05303d7705Fa;
     uint64 constant VALIDATOR_REGISTRY_LIMIT = 2 ** 40;
     uint256 constant LIQUIDATION_FLOOR_LIMIT_BPS = 1_000; //10%
     uint256 PROOF_EXPIRY_TIME = 5 hours;
@@ -53,7 +64,6 @@ contract StakeVault is IStakeVault, ERC4626Upgradeable, EIP7002 {
         uint256 requiredAmount_,
         uint256 deadline_,
         uint256 rewardBPS_,
-        bytes calldata pk,
         IERC20 usdc,
         address _usdDataFeed,
         address validator_
@@ -64,7 +74,6 @@ contract StakeVault is IStakeVault, ERC4626Upgradeable, EIP7002 {
         requiredAmount = requiredAmount_;
         deadline = deadline_;
         rewardBPS = rewardBPS_;
-        _pk = pk; //TODO we should instead get the public key when the validator is created (in lend)
         stakeLend = msg.sender;
         validator = validator_;
         status = VaultStatus.DEPOSITING;
@@ -131,14 +140,33 @@ contract StakeVault is IStakeVault, ERC4626Upgradeable, EIP7002 {
         revert("Not redeemable");
     }
 
-    function lend() external {
+    function lend(
+        bytes calldata pk,
+        bytes calldata signature,
+        bytes32 depositDataRoot
+    ) external payable {
         require(_msgSender() == validator, "Caller is not the validator");
+        require(
+            msg.sender == stakeLend, "Call needs to be router trough StakeLend"
+        );
         require(status == VaultStatus.DEPOSITING, "Not possible to lend");
+        require(msg.value == 32 ether, "No enough assets to stake");
+
+        bytes32 withdrawalCredentials =
+            bytes32(uint256(uint160(address(this))) | (uint256(0x1) << 248));
+
+        IDepositContract(DEPOSIT_CONTRACT).deposit{value: msg.value}(
+            pk,
+            abi.encodePacked(withdrawalCredentials),
+            signature,
+            depositDataRoot
+        );
 
         uint256 balance = IERC20(asset()).balanceOf(address(this));
         require(balance >= requiredAmount, "Not enough assets deposited");
 
         status = VaultStatus.LENDING;
+        _pk = pk;
 
         IERC20(asset()).transfer(validator, balance);
     }
@@ -149,7 +177,7 @@ contract StakeVault is IStakeVault, ERC4626Upgradeable, EIP7002 {
         uint64 validatorIndex,
         uint64 timestamp
     ) external override {
-        require(status == VaultStatus.LENDING, "Nothing to liquidate"); //TODO
+        require(status == VaultStatus.LENDING, "Nothing to liquidate");
 
         //reverts if proof is not valid
         (bytes calldata validatorPubKey, uint256 validatorBalance) =
@@ -160,26 +188,31 @@ contract StakeVault is IStakeVault, ERC4626Upgradeable, EIP7002 {
             "Validator public key does not belong to vault"
         );
 
-        //check if current timestamp is past loan deadline
-        if (block.timestamp > deadline) {
-            trigger_exit(address(this), validatorPubKey);
-            status == VaultStatus.LIQUIDATED;
-        }
-
         //check if min collateral ratio is not maintained
         uint256 owedAmount =
-            (requiredAmount + (requiredAmount * rewardBPS) / 10 ** 4);
+            (requiredAmount + (requiredAmount * rewardBPS) / 10000);
         uint256 currentAmount = _getEthPriceInUsdc(validatorBalance);
         if (
             owedAmount > currentAmount
                 || currentAmount - owedAmount
-                    < ((owedAmount * LIQUIDATION_FLOOR_LIMIT_BPS) / 10 ** 4)
+                    < ((owedAmount * LIQUIDATION_FLOOR_LIMIT_BPS) / 10000)
         ) {
             trigger_exit(address(this), validatorPubKey);
             status == VaultStatus.LIQUIDATED;
         } else {
             //revert liquidation
             revert();
+        }
+    }
+
+    function liquidateExpiredDebt() external override {
+        require(status == VaultStatus.LENDING, "Nothing to liquidate");
+
+        //check if current timestamp is past loan deadline
+        if (block.timestamp > deadline) {
+            trigger_exit(address(this), _pk);
+            status = VaultStatus.LIQUIDATED;
+            return;
         }
     }
 
